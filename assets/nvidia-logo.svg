@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" width="200" height="40">
+  <!-- NVIDIA Logo -->
+  <defs>
+    <linearGradient id="nvidiaGreen" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#76b900;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#88d100;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Eye/Icon on the left -->
+  <path d="M 8 20 Q 8 10, 15 10 Q 22 10, 22 20 Q 22 30, 15 30 Q 8 30, 8 20 Z" fill="url(#nvidiaGreen)"/>
+  <circle cx="15" cy="20" r="4" fill="#1a1a1a"/>
+  <circle cx="16" cy="19" r="1.5" fill="#76b900"/>
+  
+  <!-- NVIDIA Text -->
+  <g fill="#ffffff" font-family="Arial, sans-serif" font-weight="bold" font-size="24">
+    <text x="32" y="28">NVIDIA</text>
+  </g>
+  
+  <!-- Registered trademark symbol -->
+  <circle cx="190" cy="12" r="6" fill="none" stroke="#76b900" stroke-width="1"/>
+  <text x="187.5" y="15" fill="#76b900" font-family="Arial" font-size="8" font-weight="bold">R</text>
+</svg>
