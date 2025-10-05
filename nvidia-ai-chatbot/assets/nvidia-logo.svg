@@ -1,0 +1,22 @@
+<svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- NVIDIA Logo -->
+  <g>
+    <!-- N -->
+    <path d="M5 5V35H10V20L25 35H30V5H25V20L10 5H5Z" fill="#76B900"/>
+    
+    <!-- V -->
+    <path d="M35 5L45 25L55 5H60L47.5 35H42.5L30 5H35Z" fill="#76B900"/>
+    
+    <!-- I -->
+    <path d="M65 5H70V35H65V5Z" fill="#76B900"/>
+    
+    <!-- D -->
+    <path d="M75 5H85C90 5 95 10 95 20C95 30 90 35 85 35H75V5ZM80 30C82 30 85 28 85 20C85 12 82 10 80 10V30Z" fill="#76B900"/>
+    
+    <!-- I -->
+    <path d="M100 5H105V35H100V5Z" fill="#76B900"/>
+    
+    <!-- A -->
+    <path d="M110 5L120 35H115L113 30H107L105 35H100L110 5ZM111 25L108.5 15L106 25H111Z" fill="#76B900"/>
+  </g>
+</svg>
