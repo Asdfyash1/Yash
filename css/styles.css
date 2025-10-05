@@ -1,0 +1,429 @@
+/* NVIDIA AI Chatbot Styles */
+
+:root {
+  --nvidia-green: #76b900;
+  --nvidia-dark: #1a1a1a;
+  --nvidia-gray: #2d2d2d;
+  --nvidia-light-gray: #4a4a4a;
+  --nvidia-text: #ffffff;
+  --nvidia-text-secondary: #b3b3b3;
+  --nvidia-border: #3a3a3a;
+  --nvidia-accent: #00d4aa;
+  --nvidia-error: #ff6b6b;
+  --nvidia-warning: #ffd93d;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, var(--nvidia-dark) 0%, var(--nvidia-gray) 100%);
+  color: var(--nvidia-text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Header Styles */
+header {
+  background: rgba(26, 26, 26, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--nvidia-border);
+  padding: 1rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo img {
+  width: 40px;
+  height: 40px;
+}
+
+.logo h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--nvidia-green);
+}
+
+/* Chat Container */
+.chat-container {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  height: calc(100vh - 80px);
+  padding: 20px 0;
+}
+
+/* Sidebar Styles */
+.sidebar {
+  background: rgba(45, 45, 45, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid var(--nvidia-border);
+  overflow-y: auto;
+}
+
+.new-chat-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--nvidia-green);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 24px;
+}
+
+.new-chat-btn:hover {
+  background: #5a8a00;
+  transform: translateY(-1px);
+}
+
+.model-selector,
+.settings,
+.chat-history {
+  margin-bottom: 24px;
+}
+
+.model-selector h3,
+.settings h3,
+.chat-history h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nvidia-text-secondary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#model-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--nvidia-light-gray);
+  border: 1px solid var(--nvidia-border);
+  border-radius: 6px;
+  color: var(--nvidia-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#model-select:focus {
+  outline: none;
+  border-color: var(--nvidia-green);
+}
+
+.setting-item {
+  margin-bottom: 16px;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 13px;
+  color: var(--nvidia-text-secondary);
+  margin-bottom: 8px;
+}
+
+.setting-value {
+  color: var(--nvidia-green);
+  font-weight: 600;
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 6px;
+  background: var(--nvidia-light-gray);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--nvidia-green);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--nvidia-green);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+/* Main Chat Area */
+.main-chat {
+  display: flex;
+  flex-direction: column;
+  background: rgba(45, 45, 45, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid var(--nvidia-border);
+  overflow: hidden;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.message {
+  margin-bottom: 16px;
+  display: flex;
+  animation: fadeInUp 0.3s ease;
+}
+
+.user-message {
+  justify-content: flex-end;
+}
+
+.bot-message {
+  justify-content: flex-start;
+}
+
+.message-content {
+  max-width: 70%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.user-message .message-content {
+  background: var(--nvidia-green);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.bot-message .message-content {
+  background: var(--nvidia-light-gray);
+  color: var(--nvidia-text);
+  border-bottom-left-radius: 4px;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px !important;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background: var(--nvidia-text-secondary);
+  border-radius: 50%;
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
+/* Chat Input */
+.chat-input {
+  display: flex;
+  padding: 20px;
+  border-top: 1px solid var(--nvidia-border);
+  background: rgba(26, 26, 26, 0.5);
+}
+
+#user-input {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--nvidia-light-gray);
+  border: 1px solid var(--nvidia-border);
+  border-radius: 8px;
+  color: var(--nvidia-text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+#user-input:focus {
+  border-color: var(--nvidia-green);
+}
+
+#user-input::placeholder {
+  color: var(--nvidia-text-secondary);
+}
+
+.send-btn {
+  margin-left: 12px;
+  padding: 12px 16px;
+  background: var(--nvidia-green);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.send-btn:hover {
+  background: #5a8a00;
+  transform: translateY(-1px);
+}
+
+.send-btn:active {
+  transform: translateY(0);
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--nvidia-gray);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--nvidia-light-gray);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--nvidia-green);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .chat-container {
+    grid-template-columns: 250px 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: calc(100vh - 60px);
+  }
+  
+  .sidebar {
+    height: auto;
+    max-height: 200px;
+  }
+  
+  .container {
+    padding: 0 10px;
+  }
+  
+  header {
+    padding: 0.5rem 0;
+  }
+  
+  .logo h1 {
+    font-size: 1.2rem;
+  }
+  
+  .message-content {
+    max-width: 85%;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-input {
+    padding: 15px;
+  }
+  
+  #user-input {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  .send-btn {
+    padding: 10px 12px;
+  }
+}
+
+/* Dark mode enhancements */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(135deg, #0a0a0a 0%, var(--nvidia-dark) 100%);
+  }
+}
+
+/* Focus indicators for accessibility */
+button:focus,
+input:focus,
+select:focus {
+  outline: 2px solid var(--nvidia-green);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --nvidia-border: #666666;
+    --nvidia-text-secondary: #cccccc;
+  }
+}
