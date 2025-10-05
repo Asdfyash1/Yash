@@ -1,0 +1,30 @@
+<svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- NVIDIA Logo Design -->
+  <defs>
+    <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#76b900"/>
+      <stop offset="100%" stop-color="#5a9900"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- N Letter -->
+  <path d="M8 32V8h6.4l4.8 12.8V8h6.4v24H19.2l-4.8-12.8V32H8z" fill="url(#greenGradient)"/>
+  
+  <!-- V Letter -->
+  <path d="M32 8l6.4 24h-6.4L28.8 8h-3.2l-3.2 24h-6.4L22.4 8H32z" fill="url(#greenGradient)"/>
+  
+  <!-- I Letter -->
+  <path d="M44 8h6.4v24H44V8z" fill="url(#greenGradient)"/>
+  
+  <!-- D Letter -->
+  <path d="M58 8h12.8c4.8 0 8 3.2 8 8s-3.2 8-8 8h-6.4v8H58V8zm6.4 12.8h6.4c1.6 0 2.4-0.8 2.4-2.4s-0.8-2.4-2.4-2.4h-6.4v4.8z" fill="url(#greenGradient)"/>
+  
+  <!-- I Letter -->
+  <path d="M84 8h6.4v24H84V8z" fill="url(#greenGradient)"/>
+  
+  <!-- A Letter -->
+  <path d="M98 32V8h6.4l6.4 16 6.4-16h6.4v24h-6.4V16l-3.2 8h-3.2l-3.2-8v16h-6.4z" fill="url(#greenGradient)"/>
+  
+  <!-- Accent Line -->
+  <rect x="0" y="35" width="120" height="2" fill="url(#greenGradient)"/>
+</svg>
