@@ -1,0 +1,5 @@
+127.0.0.1 - - [02/Jan/2026 08:02:37] "GET /nvidia-ai-chatbot/ HTTP/1.1" 200 -
+127.0.0.1 - - [02/Jan/2026 08:02:37] "GET /nvidia-ai-chatbot/css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [02/Jan/2026 08:02:37] "GET /nvidia-ai-chatbot/js/main.js HTTP/1.1" 200 -
+127.0.0.1 - - [02/Jan/2026 08:02:37] "GET /nvidia-ai-chatbot/assets/nvidia-logo.svg HTTP/1.1" 200 -
+127.0.0.1 - - [02/Jan/2026 08:02:37] "GET /nvidia-ai-chatbot/js/api.js HTTP/1.1" 200 -
