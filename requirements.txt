@@ -1,0 +1,5 @@
+python-telegram-bot==20.7
+aiohttp==3.9.1
+dnspython==2.4.2
+cloudscraper==1.2.71
+brotli==1.1.0
