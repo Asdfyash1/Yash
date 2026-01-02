@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Hotmail/Outlook Checker Core Logic
-Refactored for Telegram Bot integration
+Refactored for Telegram Bot integration with Elite specifications.
 """
 
 import asyncio
@@ -92,7 +92,6 @@ class MicrosoftAuth:
 
         # If proxy is required, we cannot use legacy auth safely with standard libraries
         if proxy:
-            # We skip legacy auth to prevent IP leak
             return results
 
         # Try IMAP first
@@ -478,13 +477,42 @@ class MicrosoftAuth:
 # ============================================================================
 
 class ProxyManager:
-    """Proxy manager"""
+    """Proxy manager with advanced parsing"""
 
     def __init__(self, proxies: List[str], config: Config):
-        self.proxies = proxies
         self.config = config
+        self.proxies = self._parse_proxies(proxies)
         self.current_index = 0
         self.bad_proxies = set()
+
+    def _parse_proxies(self, raw_proxies: List[str]) -> List[str]:
+        """
+        Parse proxies into aiohttp compatible format:
+        http://user:pass@host:port
+        """
+        parsed = []
+        for p in raw_proxies:
+            p = p.strip()
+            if not p or p.startswith('#'):
+                continue
+
+            # Remove protocol prefix if present
+            clean_p = re.sub(r'^(http|https|socks4|socks5)://', '', p)
+
+            parts = clean_p.split(':')
+            if len(parts) == 2:
+                # ip:port
+                parsed.append(f"http://{parts[0]}:{parts[1]}")
+            elif len(parts) == 4:
+                # ip:port:user:pass
+                parsed.append(f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}")
+            else:
+                # Assume already in correct format or unknown
+                if '://' in p:
+                    parsed.append(p)
+                else:
+                    parsed.append(f"http://{p}")
+        return parsed
 
     def get_proxy(self):
         """Get next proxy"""
@@ -591,7 +619,8 @@ class HotmailCheckerV77:
         self.stats['is_running'] = True
         self.stats['start_time'] = time.time()
 
-        connector = aiohttp.TCPConnector(ssl=False, limit=100, ttl_dns_cache=300)
+        # Use single connector/session for pooling
+        connector = aiohttp.TCPConnector(ssl=False, limit=0, ttl_dns_cache=300)
         async with aiohttp.ClientSession(connector=connector) as session:
             self.auth = MicrosoftAuth(self.config, session)
 
@@ -602,19 +631,28 @@ class HotmailCheckerV77:
                     return
                 async with semaphore:
                     await self.check_single(email, password)
-                    if update_callback and self.stats['checked'] % 10 == 0:
-                        await update_callback(self.stats)
+                    if update_callback:
+                        # Call update callback, it will throttle itself
+                        if asyncio.iscoroutinefunction(update_callback):
+                            await update_callback(self.stats)
+                        else:
+                            update_callback(self.stats)
 
+            # Create all tasks
             tasks = [asyncio.create_task(worker(email, pw)) for email, pw in self.combos]
 
             try:
+                # Use gather to wait for all
                 await asyncio.gather(*tasks)
             except asyncio.CancelledError:
+                # Handle forced stop
                 self.stats['is_running'] = False
+                # Cancel remaining tasks
+                for t in tasks:
+                    if not t.done():
+                        t.cancel()
 
             self.stats['is_running'] = False
-            if update_callback:
-                await update_callback(self.stats)
 
     def stop(self):
         """Stop the checker"""
