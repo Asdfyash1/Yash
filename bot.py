@@ -4,7 +4,6 @@ import logging
 import zipfile
 import shutil
 import time
-import json
 from dataclasses import dataclass, field
 from typing import Dict, Set
 
@@ -23,11 +22,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = "8278566702:AAGW3849-ms-ghFYZLJU9CUd8AKV__yKbyE"
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not BOT_TOKEN:
+    logger.error("TELEGRAM_BOT_TOKEN environment variable not set")
+    exit(1)
+
 ADMIN_ID = 6738343341
 
 DATA_DIR = "bot_data"
-APPROVED_USERS_FILE = os.path.join(DATA_DIR, "approved_users.json")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # ============================================================================
@@ -51,38 +53,14 @@ class UserSession:
 class SessionManager:
     def __init__(self):
         self.sessions: Dict[int, UserSession] = {}
-        self.approved_users: Set[int] = self._load_approved_users()
-        self.approved_users.add(ADMIN_ID)
 
     def get_session(self, user_id: int) -> UserSession:
         if user_id not in self.sessions:
             self.sessions[user_id] = UserSession(user_id=user_id)
         return self.sessions[user_id]
 
-    def _load_approved_users(self) -> Set[int]:
-        if os.path.exists(APPROVED_USERS_FILE):
-            try:
-                with open(APPROVED_USERS_FILE, 'r') as f:
-                    return set(json.load(f))
-            except:
-                return set()
-        return set()
-
-    def save_approved_users(self):
-        with open(APPROVED_USERS_FILE, 'w') as f:
-            json.dump(list(self.approved_users), f)
-
     def is_approved(self, user_id: int) -> bool:
-        return user_id == ADMIN_ID or user_id in self.approved_users
-
-    def approve_user(self, user_id: int):
-        self.approved_users.add(user_id)
-        self.save_approved_users()
-
-    def reject_user(self, user_id: int):
-        if user_id in self.approved_users:
-            self.approved_users.remove(user_id)
-            self.save_approved_users()
+        return True
 
     def reset_session(self, user_id: int):
         if user_id in self.sessions:
@@ -109,28 +87,6 @@ session_manager = SessionManager()
 # ============================================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = user.id
-
-    if not session_manager.is_approved(user_id):
-        await update.message.reply_text("⏳ Requesting access...")
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}"),
-                InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}")
-            ]
-        ]
-        try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"👤 Request: {user.mention_html()} ({user_id})",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            logger.error(f"Notify failed: {e}")
-        return
-
     await update.message.reply_html(
         f"⚡ <b>Performance Bot Ready</b>\n"
         "1. Upload <code>combo.txt</code> / <code>proxy.txt</code>\n"
@@ -139,25 +95,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "4. /status"
     )
 
-async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    action, target_id_str = data.split("_")
-    target_id = int(target_id_str)
-
-    if action == "approve":
-        session_manager.approve_user(target_id)
-        await query.edit_message_text(f"✅ Approved {target_id}")
-        try: await context.bot.send_message(target_id, "✅ Approved! /start")
-        except: pass
-    elif action == "reject":
-        session_manager.reject_user(target_id)
-        await query.edit_message_text(f"❌ Rejected {target_id}")
-
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not session_manager.is_approved(user_id): return
+    # No approval check needed
 
     file = update.message.document
     if file.mime_type and "text" in file.mime_type or file.file_name.endswith(".txt"):
@@ -347,7 +287,6 @@ def main():
     app.add_handler(CommandHandler("status", status_command))
 
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
-    app.add_handler(CallbackQueryHandler(admin_callback, pattern=r"^(approve|reject)_"))
     app.add_handler(CallbackQueryHandler(file_callback, pattern=r"^set_(combo|proxy)$"))
 
     print("Bot Running...")
