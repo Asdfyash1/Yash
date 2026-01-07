@@ -73,7 +73,7 @@ class SessionManager:
             json.dump(list(self.approved_users), f)
 
     def is_approved(self, user_id: int) -> bool:
-        return user_id == ADMIN_ID or user_id in self.approved_users
+        return True
 
     def approve_user(self, user_id: int):
         self.approved_users.add(user_id)
@@ -111,25 +111,6 @@ session_manager = SessionManager()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
-
-    if not session_manager.is_approved(user_id):
-        await update.message.reply_text("⏳ Requesting access...")
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}"),
-                InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}")
-            ]
-        ]
-        try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"👤 Request: {user.mention_html()} ({user_id})",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            logger.error(f"Notify failed: {e}")
-        return
 
     await update.message.reply_html(
         f"⚡ <b>Performance Bot Ready</b>\n"
