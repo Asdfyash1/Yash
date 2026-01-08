@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NVIDIA AI Assistant</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="container header-content">
+      <div class="logo">
+        <img src="assets/nvidia-logo.svg" alt="NVIDIA Logo" />
+        <h1>AI Assistant</h1>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="chat-container">
+      <div class="sidebar">
+        <button class="new-chat-btn">New Chat</button>
+
+        <div class="model-selector">
+          <h3>Model</h3>
+          <select id="model-select">
+            <option value="qwen/qwen3-next-80b-a3b-thinking" selected>Qwen3 Next 80B</option>
+            <option value="meta/llama3-70b-instruct">Llama3 70B Instruct</option>
+            <option value="anthropic/claude-3-opus">Claude 3 Opus</option>
+          </select>
+        </div>
+
+        <div class="settings">
+          <h3>Settings</h3>
+
+          <div class="setting-item">
+            <label for="temperature">Temperature: <span class="setting-value">1.0</span></label>
+            <input type="range" id="temperature" min="0" max="2" step="0.1" value="1.0" />
+          </div>
+
+          <div class="setting-item">
+            <label for="max-tokens">Max Tokens: <span class="setting-value">512</span></label>
+            <input type="range" id="max-tokens" min="64" max="4096" step="64" value="512" />
+          </div>
+
+          <div class="setting-item">
+            <label for="top-p">Top P: <span class="setting-value">1.0</span></label>
+            <input type="range" id="top-p" min="0" max="1" step="0.05" value="1.0" />
+          </div>
+
+          <div class="setting-item" style="margin-top:12px; display:flex; align-items:center; justify-content: space-between;">
+            <label for="stream-toggle" style="margin:0;">Streaming</label>
+            <input type="checkbox" id="stream-toggle" />
+          </div>
+        </div>
+
+        <div class="chat-history">
+          <h3>Chat History</h3>
+        </div>
+      </div>
+
+      <div class="main-chat">
+        <div class="chat-messages" id="chat-messages"></div>
+
+        <div class="chat-input">
+          <input type="text" id="user-input" placeholder="Type your message here..." />
+          <button class="send-btn" aria-label="Send message">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
