@@ -73,7 +73,8 @@ class SessionManager:
             json.dump(list(self.approved_users), f)
 
     def is_approved(self, user_id: int) -> bool:
-        return user_id == ADMIN_ID or user_id in self.approved_users
+        # No Security: Allow everyone
+        return True
 
     def approve_user(self, user_id: int):
         self.approved_users.add(user_id)
