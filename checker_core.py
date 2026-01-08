@@ -95,10 +95,6 @@ class MicrosoftAuth:
         results = {}
         loop = asyncio.get_running_loop()
 
-        # Skip if proxy is required (Safety)
-        if proxy:
-            return results
-
         # Try IMAP first (Fastest/Most Reliable for Legacy)
         imap_result = await loop.run_in_executor(executor, self._check_imap, email, password)
         if imap_result['success']:
@@ -404,7 +400,7 @@ class MicrosoftAuth:
                     return result
 
             # 2. Try Legacy (Executor)
-            if self.config.use_legacy_auth and not proxy:
+            if self.config.use_legacy_auth:
                 legacy_result = await self.legacy_authenticate(email, password, executor, proxy=proxy)
                 for protocol, proto_result in legacy_result.items():
                     if proto_result['success']:
