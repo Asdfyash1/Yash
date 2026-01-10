@@ -95,10 +95,6 @@ class MicrosoftAuth:
         results = {}
         loop = asyncio.get_running_loop()
 
-        # Skip if proxy is required (Safety)
-        if proxy:
-            return results
-
         # Try IMAP first (Fastest/Most Reliable for Legacy)
         imap_result = await loop.run_in_executor(executor, self._check_imap, email, password)
         if imap_result['success']:
